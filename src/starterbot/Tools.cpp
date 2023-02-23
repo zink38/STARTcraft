@@ -1,5 +1,21 @@
 #include "Tools.h"
 
+
+// Sample Lehmer LCG PRNG Function (from slides)
+uint32_t Tools::LehmerPRNG(uint32_t seed)
+{
+    uint64_t tmp;
+    tmp = (uint64_t)seed * 0x4a39b70d;
+    uint32_t m1 = (uint32_t)((tmp >> 32) ^ tmp);
+    tmp = (uint64_t)m1 * 0x12fad5c9;
+    uint32_t m2 = (uint32_t)((tmp >> 32) ^ tmp);
+    return m2;
+}
+uint32_t Tools::LRNG2(uint32_t x, uint32_t y)
+{
+    return  LehmerPRNG(Tools::LehmerPRNG(x) ^ y);
+}
+
 BWAPI::Unit Tools::GetClosestUnitTo(BWAPI::Position p, const BWAPI::Unitset& units)
 {
     BWAPI::Unit closestUnit = nullptr;
@@ -117,6 +133,21 @@ void Tools::DrawUnitBoundingBoxes()
     }
 }
 
+void Tools::DrawUnitIDs()
+{
+    for (auto& unit : BWAPI::Broodwar->getAllUnits())
+    {
+        BWAPI::Broodwar->drawTextMap(unit->getPosition(), "%d", unit->getID());
+    }
+}
+
+void Tools::DrawUnitCircle(BWAPI::Unit unit, size_t radius)
+{
+    
+   BWAPI::Broodwar->drawCircleMap(unit->getPosition(), radius, BWAPI::Colors::Red);
+    
+}
+
 void Tools::SmartRightClick(BWAPI::Unit unit, BWAPI::Unit target)
 {
     // if there's no valid unit, ignore the command
@@ -132,6 +163,28 @@ void Tools::SmartRightClick(BWAPI::Unit unit, BWAPI::Unit target)
     // If there's nothing left to stop us, right click!
     unit->rightClick(target);
 }
+
+
+//Same as above command although fixes crash when command has no target unit 
+//and now returns a bool to show if the command was succesful
+bool Tools::SmartRightClickBool(BWAPI::Unit unit, BWAPI::Unit target)
+{
+    // if there's no valid unit, ignore the command
+    if (!unit || !target) { return false; }
+
+    // Don't issue a 2nd command to the unit on the same frame
+    if (unit->getLastCommandFrame() >= BWAPI::Broodwar->getFrameCount()) { return true; }
+
+    // If we are issuing the same type of command with the same arguments, we can ignore it
+    // Issuing multiple identical commands on successive frames can lead to bugs
+    if(unit->getLastCommand().getTarget())
+    {
+        if (unit->getLastCommand().getTarget() == target) { return true; }
+    }
+    // If there's nothing left to stop us, right click!
+    return unit->rightClick(target);
+}
+
 
 int Tools::GetTotalSupply(bool inProgress)
 {
@@ -232,3 +285,34 @@ void Tools::DrawHealthBar(BWAPI::Unit unit, double ratio, BWAPI::Color color, in
         BWAPI::Broodwar->drawLineMap(BWAPI::Position(i, hpTop), BWAPI::Position(i, hpBottom), BWAPI::Colors::Black);
     }
 }
+
+size_t Tools::CalcDistanceSquared(BWAPI::Position pos1, BWAPI::Position pos2)
+{
+    size_t distance = 0;
+    BWAPI::Position difference = pos2 - pos1;
+    //std::cout << pos1 << std::endl << pos2 << std::endl << difference << std::endl;
+    difference.x *= difference.x;
+    difference.y *= difference.y;
+    distance = difference.x + difference.y;
+    //std::cout << distance << std::endl;
+    return distance;
+}
+
+bool Tools::HasAssimilator(BWAPI::Unit gas)
+{
+    const auto& closestUnit = BWAPI::Broodwar->getClosestUnit(gas->getPosition(), BWAPI::Filter::IsRefinery, 15);
+    if (closestUnit && closestUnit->getType() == BWAPI::UnitTypes::Protoss_Assimilator && closestUnit->getPlayer() == BWAPI::Broodwar->self())
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+BWAPI::Unit Tools::GetRefinery(BWAPI::Unit gas)
+{
+    const auto& closestUnit = BWAPI::Broodwar->getClosestUnit(gas->getPosition(), BWAPI::Filter::IsRefinery, 15);
+    return closestUnit;
+}
+
